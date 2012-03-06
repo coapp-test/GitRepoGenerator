@@ -12,12 +12,16 @@ namespace GitRepoGenerator
     {
 
         private const string HelpMessage =
-    "\nUsage:  GitRepoGenerator --url=<API_Url_Location> --existing=<Existing_Projects_File> [--disabled] [--ignore=<Project_Name>]" +
-    "\n\n--url=\t\tThe full url for the GitHub API call.\n" +
-    "--existing=\tInput text file listing existing Jenkins projects, 1 project per line.\n" +
-    "--disabled\tOptional parameter.  Will generate Jenkins project files already set to 'Disabled'.\n"+
-    "--ignore=\tOptional parameter.  <Project_Name> will be removed from <Existing_Projects_File> before processing.\n";
+            "\nUsage:  GitRepoGenerator --url=<API_Url_Location> --existing=<Existing_Projects_File> [--disabled] [--ignore=<Project_Name>] [--child=<Child_Project>] [--msi_out=<TargetDir>]" +
+            "\n\n--url=\t\tThe full url for the GitHub API call.\n" +
+            "--existing=\tInput text file listing existing Jenkins projects, 1 project per line.\n" +
+            "--disabled\tOptional parameter.  Will generate Jenkins project files already set to 'Disabled'.\n"+
+            "--ignore=\tOptional parameter.  <Project_Name> will be removed from <Existing_Projects_File> before processing.\n"+
+            "--child=\tOptional parameter.  Trigger a build of <Child_Project> after any successful build of this project.\n"+
+            "--msi_out=\tOptional parameter.  This will copy any .msi files from the workspace to <TargetDir> after a successful build.\n";
 
+        private static string child = null;
+        private static string msi_out = null;
 
         /*
          * 
@@ -41,7 +45,8 @@ namespace GitRepoGenerator
             if (args.SwitchValue("disabled") != null)
                 EnableProjects = false;
 
-            string ignore = args.SwitchValue("ignore") ?? String.Empty;
+            
+            List<string> ignore = new List<string>(args.Switches()["ignore"]);
 
             // Load the list of existing projects...
             List<string> existing;
@@ -56,7 +61,10 @@ namespace GitRepoGenerator
                         init.Add(IN.ReadLine());
                     }
                     existing = new List<string>(init.Distinct());
-                    existing.Remove(ignore); //remove the project to be ignored
+                    foreach (string s in ignore)
+                    {
+                        existing.Remove(s); //remove the project to be ignored
+                    }
                 }
                 catch (FileNotFoundException e)
                 {
@@ -68,6 +76,9 @@ namespace GitRepoGenerator
                 Console.WriteLine(HelpMessage);
                 return -2;
             }
+
+            child = args.SwitchValue("child");
+            msi_out = args.SwitchValue("msi_out");
 
             // Load the repo list...
             List<JObject> jsons = new List<JObject>();
@@ -281,9 +292,38 @@ namespace GitRepoGenerator
                     xml.WriteEndElement(); //end builders
                     xml.WriteStartElement("publishers");
                         xml.WriteStartElement("hudson.tasks.ArtifactArchiver");
-                            xml.WriteElementString("artifacts",@".\COPKG\**.msi");
+                            xml.WriteElementString("artifacts",@"COPKG\**.msi");
                             xml.WriteElementString("latestOnly","false");
                         xml.WriteEndElement(); //end ArtifactArchiver
+                        if (child != null)
+                        {
+                            xml.WriteStartElement("hudson.tasks.BuildTrigger");
+                                xml.WriteElementString("childProjects",child);
+                                xml.WriteStartElement("threshold");
+                                    xml.WriteElementString("name","SUCCESS");
+                                    xml.WriteElementString("ordinal","0");
+                                    xml.WriteElementString("color","BLUE");
+                                xml.WriteEndElement(); //end threshold
+                            xml.WriteEndElement(); //end BuildTrigger
+                        }
+                        if (msi_out != null)
+                        {
+                            xml.WriteStartElement("org.jenkinsci.plugins.artifactdeployer.ArtifactDeployerPublisher");
+                                xml.WriteStartElement("entries");
+                                    xml.WriteStartElement("org.jenkinsci.plugins.artifactdeployer.ArtifactDeployerEntry");
+                                        xml.WriteElementString("includes",@"COPKG\**.msi");
+                                        xml.WriteElementString("remote",msi_out);
+                                        xml.WriteElementString("flatten","true");
+                                        xml.WriteElementString("deleteRemote","false");
+                                        xml.WriteElementString("deleteRemoteArticacts","false");
+                                        xml.WriteElementString("deleteRemoteArtifactsByScript","false");
+                                    xml.WriteEndElement(); // end ArtifactDeployerEntry
+                                xml.WriteEndElement(); //end entries
+                            xml.WriteEndElement(); //end ArtifactDeployerPublisher
+                        }
+                        xml.WriteStartElement("hudson.plugins.ws__cleanup.WsCleanup");
+                            xml.WriteElementString("deleteDirs","true");
+                        xml.WriteEndElement(); //end WsCleanup
                     xml.WriteEndElement(); //end publishers
                     xml.WriteStartElement("buildWrappers");
                     xml.WriteEndElement();
