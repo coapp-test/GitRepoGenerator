@@ -297,14 +297,14 @@ namespace GitRepoGenerator
                                 xml.WriteElementString("command", @"REM This clears a block on deleting the workspace before/after a build.
 setlocal ENABLEDELAYEDEXPANSION
 set iter=1
-for /F &quot;tokens=3,6,* delims=: &quot; %%A in (&apos;C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\.git&apos;) do (
+for /F ""tokens=3,6,* delims=: ""; %%A in ('C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\.git') do (
   if !iter! lss 3 (
     set /a iter+=1
   ) else (
     C:\utl\sysinternals\handle.exe /accepteula -c %%B -y -p %%A
   )
 )
-for /F &quot;tokens=3,6,* delims=: &quot; %%A in (&apos;C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\COPKG&apos;) do (
+for /F ""tokens=3,6,* delims=: "" %%A in ('C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\COPKG') do (
   if !iter! lss 3 (
     set /a iter+=1
   ) else (
