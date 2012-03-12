@@ -240,7 +240,7 @@ namespace GitRepoGenerator
                         xml.WriteElementString("recursiveSubmodules","true");
                         xml.WriteElementString("doGenerateSubmoduleConfigurations","false");
                         xml.WriteElementString("authorOrCommitter","false");
-                        xml.WriteElementString("clean","true");
+                        xml.WriteElementString("clean","false");
                         xml.WriteElementString("wipeOutWorkspace","true");
                         xml.WriteElementString("pruneBranches","false");
                         xml.WriteElementString("remotePoll","false");
@@ -268,8 +268,7 @@ namespace GitRepoGenerator
                         xml.WriteFullEndElement();
                     xml.WriteEndElement(); //end scm
                     xml.WriteElementString("quietPeriod","30");
-                    xml.WriteElementString("assignedNode","master");
-                    xml.WriteElementString("canRoam", "false");
+                    xml.WriteElementString("canRoam", "true");
                     xml.WriteElementString("disabled",enabled?"true":"false");
                     xml.WriteElementString("blockBuildWhenDownstreamBuilding","false");
                     xml.WriteElementString("blockBuildWhenUpstreamBuilding", "false");
@@ -289,6 +288,35 @@ namespace GitRepoGenerator
                         xml.WriteStartElement("hudson.tasks.BatchFile");
                             xml.WriteElementString("command", @"ptk package");
                         xml.WriteEndElement(); //end BatchFile
+                        xml.WriteStartElement("org.jenkinsci.plugins.conditionalbuildstep.singlestep.SingleConditionalBuilder");
+                            xml.WriteStartElement("condition");
+                                xml.WriteAttributeString("class", "org.jenkins_ci.plugins.run_condition.core.AlwaysRun");
+                            xml.WriteEndElement(); //end condition
+                            xml.WriteStartElement("buildStep");
+                                xml.WriteAttributeString("class","hudson.tasks.BatchFile");
+                                xml.WriteElementString("command", @"REM This clears a block on deleting the workspace before/after a build.
+setlocal ENABLEDELAYEDEXPANSION
+set iter=1
+for /F &quot;tokens=3,6,* delims=: &quot; %%A in (&apos;C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\.git&apos;) do (
+  if !iter! lss 3 (
+    set /a iter+=1
+  ) else (
+    C:\utl\sysinternals\handle.exe /accepteula -c %%B -y -p %%A
+  )
+)
+for /F &quot;tokens=3,6,* delims=: &quot; %%A in (&apos;C:\utl\SysInternals\handle.exe " + repo["name"] + @"\workspace\COPKG&apos;) do (
+  if !iter! lss 3 (
+    set /a iter+=1
+  ) else (
+    C:\utl\sysinternals\handle.exe /accepteula -c %%B -y -p %%A
+  )
+)
+endlocal");
+                            xml.WriteEndElement(); //end buildStep
+                            xml.WriteStartElement("runner");
+                            xml.WriteAttributeString("class", "org.jenkins_ci.plugins.run_condition.BuildStepRunner$RunUnstable");
+                            xml.WriteEndElement();
+                        xml.WriteEndElement(); //end SingleConditionalBuilder
                     xml.WriteEndElement(); //end builders
                     xml.WriteStartElement("publishers");
                         xml.WriteStartElement("hudson.tasks.ArtifactArchiver");
@@ -321,9 +349,6 @@ namespace GitRepoGenerator
                                 xml.WriteEndElement(); //end entries
                             xml.WriteEndElement(); //end ArtifactDeployerPublisher
                         }
-                        xml.WriteStartElement("hudson.plugins.ws__cleanup.WsCleanup");
-                            xml.WriteElementString("deleteDirs","true");
-                        xml.WriteEndElement(); //end WsCleanup
                     xml.WriteEndElement(); //end publishers
                     xml.WriteStartElement("buildWrappers");
                     xml.WriteEndElement();
