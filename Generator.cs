@@ -283,14 +283,29 @@ namespace GitRepoGenerator
                     xml.WriteElementString("concurrentBuild","false");
                     xml.WriteStartElement("builders");
                         xml.WriteStartElement("hudson.tasks.BatchFile");
-                            xml.WriteElementString("command", @"ptk test");
-                        xml.WriteEndElement(); //end BatchFile
-                        xml.WriteStartElement("hudson.tasks.BatchFile");
-                            xml.WriteElementString("command", @"ptk package");
+                        xml.WriteElementString("command", @"setlocal ENABLEDELAYEDEXPANSION
+git diff HEAD HEAD~1 COPKG\version.inc > COPKG\tmp_diff.txt
+set HAS_DIFF=false
+if %ERRORLEVEL% == 0 (
+    for /F ""tokens=*"" %%A in ('type COPKG\tmp_diff.txt') do set HAS_DIFF=true
+    if ""!HAS_DIFF!"" == ""false"" goto :eof
+)
+ptk test && ptk package
+");
                         xml.WriteEndElement(); //end BatchFile
                         xml.WriteStartElement("org.jenkinsci.plugins.conditionalbuildstep.singlestep.SingleConditionalBuilder");
                             xml.WriteStartElement("condition");
-                                xml.WriteAttributeString("class", "org.jenkins_ci.plugins.run_condition.core.AlwaysRun");
+                                xml.WriteAttributeString("class", "org.jenkins_ci.plugins.run_condition.core.StatusCondition");
+                                xml.WriteStartElement("worstResult");
+                                    xml.WriteElementString("name","ABORTED");
+                                    xml.WriteElementString("ordinal","4");
+                                    xml.WriteElementString("color", "ABORTED");
+                                xml.WriteEndElement(); //end worstResult
+                                xml.WriteStartElement("bestResult");
+                                    xml.WriteElementString("name", "SUCCESS");
+                                    xml.WriteElementString("ordinal", "0");
+                                    xml.WriteElementString("color", "BLUE");
+                                xml.WriteEndElement(); //end bestResult
                             xml.WriteEndElement(); //end condition
                             xml.WriteStartElement("buildStep");
                                 xml.WriteAttributeString("class","hudson.tasks.BatchFile");
